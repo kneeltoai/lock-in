@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
+import { router } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
 
 interface StatCardProps {
@@ -70,15 +71,15 @@ export default function ProfileScreen() {
       {/* Settings */}
       <View className="bg-surface border border-border rounded-2xl px-4 mb-4">
         <MenuItem label="무게 단위" subtitle="kg" />
-        <MenuItem label="원판 설정" />
-        <MenuItem label="점진적 과부하 설정" />
+        <MenuItem label="원판 설정" onPress={() => router.push("/(app)/settings/plates")} />
+        <MenuItem label="점진적 과부하 설정" onPress={() => router.push("/(app)/settings/overload")} />
       </View>
 
       {/* Records */}
       <View className="bg-surface border border-border rounded-2xl px-4 mb-4">
-        <MenuItem label="신체 기록" />
-        <MenuItem label="운동 히스토리" />
-        <MenuItem label="주간 루틴 관리" />
+        <MenuItem label="신체 기록" onPress={() => router.push("/(app)/body-records")} />
+        <MenuItem label="운동 히스토리" onPress={() => router.push("/(app)/routine")} />
+        <MenuItem label="주간 루틴 관리" onPress={() => router.push("/(app)/routine")} />
       </View>
 
       {/* Logout */}
