@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import { useSessionByDate } from "@/hooks/useWorkoutSession";
 import { useAddSet, useUpdateSet, useDeleteSet } from "@/hooks/useWorkoutSession";
 import { useWorkoutStore } from "@/stores/workoutStore";
 import { Equipment, ExerciseSet, SessionExercise } from "@/types/workout";
+import { RestTimer } from "@/components/RestTimer";
+
+const DEFAULT_REST_SECONDS = 90;
 
 const EQUIPMENT_OPTIONS: { value: Equipment; label: string }[] = [
   { value: "barbell",    label: "바벨" },
@@ -29,9 +32,10 @@ const EQUIPMENT_OPTIONS: { value: Equipment; label: string }[] = [
 interface SetRowProps {
   set: ExerciseSet;
   setNumber: number;
+  onSetCompleted: () => void;
 }
 
-function SetRow({ set, setNumber }: SetRowProps) {
+function SetRow({ set, setNumber, onSetCompleted }: SetRowProps) {
   const updateSet = useUpdateSet();
   const deleteSet = useDeleteSet();
 
@@ -49,7 +53,9 @@ function SetRow({ set, setNumber }: SetRowProps) {
   };
 
   const toggleComplete = () => {
-    updateSet.mutate({ setId: set.id, updates: { is_completed: !set.is_completed } });
+    const nowComplete = !set.is_completed;
+    updateSet.mutate({ setId: set.id, updates: { is_completed: nowComplete } });
+    if (nowComplete) onSetCompleted();
   };
 
   const handleDelete = () => {
@@ -139,9 +145,10 @@ function EquipmentSelector({ selected, onChange }: EquipmentSelectorProps) {
 
 interface ExerciseCardProps {
   sessionExercise: SessionExercise;
+  onSetCompleted: () => void;
 }
 
-function ExerciseCard({ sessionExercise }: ExerciseCardProps) {
+function ExerciseCard({ sessionExercise, onSetCompleted }: ExerciseCardProps) {
   const addSet = useAddSet();
   const [equipment, setEquipment] = useState<Equipment>("barbell");
 
@@ -182,7 +189,7 @@ function ExerciseCard({ sessionExercise }: ExerciseCardProps) {
 
       {/* Sets */}
       {sets.map((set, i) => (
-        <SetRow key={set.id} set={set} setNumber={i + 1} />
+        <SetRow key={set.id} set={set} setNumber={i + 1} onSetCompleted={onSetCompleted} />
       ))}
 
       {/* Add Set */}
@@ -204,13 +211,65 @@ function ExerciseCard({ sessionExercise }: ExerciseCardProps) {
 // ── Main Session Screen ───────────────────────────────
 
 export default function SessionScreen() {
-  const { selectedDate, selectedMuscleGroup } = useWorkoutStore();
+  const { selectedDate } = useWorkoutStore();
   const { data: session, isLoading } = useSessionByDate(selectedDate);
 
   const sessionExercises = session?.session_exercises ?? [];
 
+  // ── 타이머 상태 ──────────────────────────────────────
+  const [timerVisible, setTimerVisible] = useState(false);
+  const [timerDuration, setTimerDuration] = useState(DEFAULT_REST_SECONDS);
+  const [timerRemaining, setTimerRemaining] = useState(DEFAULT_REST_SECONDS);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopTimer = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setTimerVisible(false);
+  }, []);
+
+  const startTimer = useCallback((seconds: number) => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setTimerDuration(seconds);
+    setTimerRemaining(seconds);
+    setTimerVisible(true);
+    intervalRef.current = setInterval(() => {
+      setTimerRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+          setTimerVisible(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const handleSetCompleted = useCallback(() => {
+    startTimer(DEFAULT_REST_SECONDS);
+  }, [startTimer]);
+
+  const handleAdjustTimer = useCallback((delta: number) => {
+    setTimerRemaining((prev) => {
+      const next = Math.max(5, prev + delta);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
+
   return (
     <View className="flex-1 bg-background">
+      <RestTimer
+        visible={timerVisible}
+        duration={timerDuration}
+        remaining={timerRemaining}
+        onSkip={stopTimer}
+        onAdjust={handleAdjustTimer}
+      />
       {/* Header */}
       <View className="pt-14 pb-4 px-6 flex-row items-center justify-between">
         <TouchableOpacity onPress={() => router.back()}>
@@ -238,7 +297,7 @@ export default function SessionScreen() {
               .slice()
               .sort((a, b) => a.order_index - b.order_index)
               .map((se) => (
-                <ExerciseCard key={se.id} sessionExercise={se} />
+                <ExerciseCard key={se.id} sessionExercise={se} onSetCompleted={handleSetCompleted} />
               ))
           )}
         </ScrollView>

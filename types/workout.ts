@@ -83,3 +83,24 @@ export interface BodyRecord {
   notes?: string;
   created_at: string;
 }
+
+export type CardioType =
+  | "running"
+  | "cycling"
+  | "swimming"
+  | "walking"
+  | "jump_rope"
+  | "rowing"
+  | "other";
+
+export interface CardioLog {
+  id: string;
+  user_id: string;
+  date: string; // YYYY-MM-DD
+  cardio_type: CardioType;
+  duration_min: number;
+  distance_km?: number | null;
+  calories?: number | null;
+  notes?: string | null;
+  created_at: string;
+}

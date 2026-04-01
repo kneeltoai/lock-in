@@ -128,7 +128,9 @@ export default function ProfileScreen() {
 
       {/* Records */}
       <View className="bg-surface border border-border rounded-2xl px-4 mb-4">
+        <MenuItem label="운동 통계" subtitle="1RM · 볼륨 추이" onPress={() => router.push("/(app)/stats")} />
         <MenuItem label="신체 기록" onPress={() => router.push("/(app)/body-records")} />
+        <MenuItem label="카디오 기록" onPress={() => router.push("/(app)/cardio")} />
         <MenuItem label="주간 루틴 관리" onPress={() => router.push("/(app)/routine")} />
       </View>
 

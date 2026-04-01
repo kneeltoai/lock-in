@@ -37,17 +37,17 @@ export default function MainScreen() {
       {/* Swipeable Pages */}
       <PagerView
         ref={pagerRef}
-        className="flex-1"
+        style={{ flex: 1 }}
         initialPage={0}
         onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
       >
-        <View key="routine" className="flex-1">
+        <View key="routine" style={{ flex: 1 }}>
           <RoutineScreen />
         </View>
-        <View key="calendar" className="flex-1">
+        <View key="calendar" style={{ flex: 1 }}>
           <CalendarScreen />
         </View>
-        <View key="profile" className="flex-1">
+        <View key="profile" style={{ flex: 1 }}>
           <ProfileScreen />
         </View>
       </PagerView>
