@@ -83,28 +83,26 @@ async function removeRoutineExercise(id: string): Promise<void> {
 }
 
 /**
- * 12주치 workout_sessions를 루틴 기반으로 자동 생성.
+ * 지정한 주 수만큼 workout_sessions를 루틴 기반으로 자동 생성.
  * 이미 세션이 있는 날짜는 upsert로 건드리지 않음.
  */
-async function generate12WeekSessions(userId: string, routine: WeeklyRoutine): Promise<void> {
+async function generateRoutineSessions(userId: string, routine: WeeklyRoutine, weeks: number): Promise<void> {
   if (!routine.routine_exercises?.length) return;
 
   const today = new Date();
   const sessions: { user_id: string; date: string; title: string }[] = [];
 
-  for (let week = 0; week < 12; week++) {
+  for (let week = 0; week < weeks; week++) {
     for (const re of routine.routine_exercises) {
       const d = new Date(today);
-      // 이번 주 해당 요일로 이동
       const diff = re.day_of_week - today.getDay() + week * 7;
       d.setDate(today.getDate() + diff);
-      if (d < today && week === 0) continue; // 이미 지난 날짜 스킵
+      if (d < today && week === 0) continue;
       const date = d.toISOString().split("T")[0];
       sessions.push({ user_id: userId, date, title: routine.name });
     }
   }
 
-  // 중복 제거 (같은 날짜)
   const unique = [...new Map(sessions.map((s) => [s.date, s])).values()];
 
   const { error } = await supabase
@@ -168,11 +166,12 @@ export function useRemoveRoutineExercise() {
   });
 }
 
-export function useGenerate12Weeks() {
+export function useGenerateRoutineSessions() {
   const { user } = useAuthStore();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (routine: WeeklyRoutine) => generate12WeekSessions(user!.id, routine),
+    mutationFn: ({ routine, weeks }: { routine: WeeklyRoutine; weeks: number }) =>
+      generateRoutineSessions(user!.id, routine, weeks),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sessions-month"] }),
   });
 }

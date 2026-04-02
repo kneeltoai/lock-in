@@ -8,21 +8,27 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  ScrollView,
 } from "react-native";
 import { router } from "expo-router";
 import {
   useRoutines,
   useCreateRoutine,
   useSetActiveRoutine,
-  useGenerate12Weeks,
+  useGenerateRoutineSessions,
   WeeklyRoutine,
 } from "@/hooks/useRoutine";
+
+const DURATION_PRESETS = [1, 2, 4, 6, 8, 12, 16, 24];
 
 const DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function RoutineCard({ routine }: { routine: WeeklyRoutine }) {
   const setActive = useSetActiveRoutine();
-  const generate = useGenerate12Weeks();
+  const generate = useGenerateRoutineSessions();
+  const [durationModalVisible, setDurationModalVisible] = useState(false);
+  const [selectedWeeks, setSelectedWeeks] = useState(12);
+  const [weeksInput, setWeeksInput] = useState("12");
 
   // 요일별로 그루핑
   const byDay: Record<number, string[]> = {};
@@ -33,20 +39,81 @@ function RoutineCard({ routine }: { routine: WeeklyRoutine }) {
 
   const handleActivate = async () => {
     await setActive.mutateAsync(routine.id);
-    Alert.alert("활성화 완료", "12주치 캘린더를 생성할까요?", [
-      { text: "아니요", style: "cancel" },
-      {
-        text: "생성",
-        onPress: async () => {
-          await generate.mutateAsync(routine);
-          Alert.alert("완료", "12주치 캘린더가 생성되었습니다.");
-        },
-      },
-    ]);
+    setDurationModalVisible(true);
+  };
+
+  const handleGenerate = async () => {
+    const weeks = parseInt(weeksInput, 10);
+    if (isNaN(weeks) || weeks < 1 || weeks > 52) {
+      Alert.alert("입력 오류", "1~52 사이의 숫자를 입력해주세요.");
+      return;
+    }
+    setDurationModalVisible(false);
+    await generate.mutateAsync({ routine, weeks });
+    Alert.alert("완료", `${weeks}주치 캘린더가 생성되었습니다.`);
   };
 
   return (
     <View className={`bg-surface border rounded-2xl p-4 mb-3 ${routine.is_active ? "border-primary" : "border-border"}`}>
+      {/* 기간 선택 모달 */}
+      <Modal visible={durationModalVisible} transparent animationType="fade">
+        <View className="flex-1 bg-black/60 justify-center px-6">
+          <View className="bg-surface border border-border rounded-2xl p-6">
+            <Text className="text-white text-lg font-bold mb-1">캘린더 생성</Text>
+            <Text className="text-zinc-500 text-sm mb-4">몇 주치를 생성할까요?</Text>
+
+            {/* 직접 입력 */}
+            <View className="flex-row items-center bg-background border border-border rounded-xl px-4 py-3 mb-4">
+              <TextInput
+                className="flex-1 text-white text-2xl font-bold text-center"
+                value={weeksInput}
+                onChangeText={(v) => setWeeksInput(v.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                maxLength={2}
+              />
+              <Text className="text-zinc-500 text-base">주</Text>
+            </View>
+
+            {/* 프리셋 */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
+              <View className="flex-row gap-2">
+                {DURATION_PRESETS.map((w) => (
+                  <TouchableOpacity
+                    key={w}
+                    onPress={() => setWeeksInput(String(w))}
+                    className={`px-3 py-1.5 rounded-full border ${
+                      weeksInput === String(w) ? "bg-primary border-primary" : "bg-background border-border"
+                    }`}
+                  >
+                    <Text className={`text-sm font-medium ${weeksInput === String(w) ? "text-white" : "text-zinc-400"}`}>
+                      {w}주
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                className="flex-1 border border-border rounded-xl py-3 items-center"
+                onPress={() => setDurationModalVisible(false)}
+              >
+                <Text className="text-zinc-300 font-medium">취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 bg-primary rounded-xl py-3 items-center"
+                onPress={handleGenerate}
+                disabled={generate.isPending}
+              >
+                {generate.isPending ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text className="text-white font-semibold">생성</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       <View className="flex-row items-center justify-between mb-3">
         <Text className="text-white font-bold text-base">{routine.name}</Text>
         {routine.is_active && (

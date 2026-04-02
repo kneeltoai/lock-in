@@ -125,3 +125,95 @@ export function useExerciseStats() {
     staleTime: 1000 * 60 * 5,
   });
 }
+
+// ── 주간 스탯 ────────────────────────────────────────────
+
+export interface WeeklyStats {
+  weeklyVolume: number;  // 이번 주 총 kg×reps
+  weeklyDays: number;    // 이번 주 운동일 수
+  streakDays: number;    // 연속 달성일
+}
+
+async function fetchWeeklyStats(userId: string): Promise<WeeklyStats> {
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+
+  // 이번 주 월요일
+  const dow = today.getDay();
+  const daysFromMon = dow === 0 ? 6 : dow - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysFromMon);
+  const mondayStr = monday.toISOString().split("T")[0];
+
+  // 스트릭 계산용 1년치
+  const yearAgo = new Date(today);
+  yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+  const yearAgoStr = yearAgo.toISOString().split("T")[0];
+
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select(`
+      date,
+      ended_at,
+      session_exercises (
+        sets:exercise_sets (weight_kg, reps, is_completed)
+      )
+    `)
+    .eq("user_id", userId)
+    .gte("date", yearAgoStr)
+    .lte("date", todayStr);
+
+  if (error) throw error;
+  const sessions = (data ?? []) as Array<{
+    date: string;
+    ended_at: string | null;
+    session_exercises: Array<{
+      sets: Array<{ weight_kg: number | null; reps: number | null; is_completed: boolean }>;
+    }>;
+  }>;
+
+  let weeklyVolume = 0;
+  const weeklyDates = new Set<string>();
+  const completedDates = new Set<string>();
+
+  for (const session of sessions) {
+    if (session.ended_at) completedDates.add(session.date);
+    if (session.date >= mondayStr) {
+      weeklyDates.add(session.date);
+      for (const se of session.session_exercises) {
+        for (const s of se.sets) {
+          if (s.is_completed && s.weight_kg && s.reps) {
+            weeklyVolume += s.weight_kg * s.reps;
+          }
+        }
+      }
+    }
+  }
+
+  // 연속 달성일: 오늘 미완료면 어제부터 역산
+  let streak = 0;
+  const cursor = new Date(today);
+  if (!completedDates.has(todayStr)) cursor.setDate(cursor.getDate() - 1);
+  for (let i = 0; i < 366; i++) {
+    const d = cursor.toISOString().split("T")[0];
+    if (!completedDates.has(d)) break;
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return {
+    weeklyVolume: Math.round(weeklyVolume),
+    weeklyDays: weeklyDates.size,
+    streakDays: streak,
+  };
+}
+
+export function useWeeklyStats() {
+  const { user } = useAuthStore();
+  return useQuery({
+    queryKey: ["weekly-stats", user?.id],
+    queryFn: () => fetchWeeklyStats(user!.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+  });
+}

@@ -2,13 +2,13 @@ import { useRef, useState } from "react";
 import { View, Text } from "react-native";
 import PagerView from "react-native-pager-view";
 import RoutineScreen from "./screens/routine";
-import CalendarScreen from "./screens/calendar";
+import HomeScreen from "./screens/home";
 import ProfileScreen from "./screens/profile";
 
-const TABS = ["루틴", "캘린더", "프로필"] as const;
+const TABS = ["루틴", "홈", "프로필"] as const;
 
 export default function MainScreen() {
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const pagerRef = useRef<PagerView>(null);
 
   return (
@@ -19,9 +19,7 @@ export default function MainScreen() {
           <View key={tab} className="flex-1 items-center">
             <Text
               className={`text-sm font-semibold ${
-                currentPage === index
-                  ? "text-white"
-                  : "text-zinc-500"
+                currentPage === index ? "text-white" : "text-zinc-500"
               }`}
               onPress={() => pagerRef.current?.setPage(index)}
             >
@@ -38,14 +36,14 @@ export default function MainScreen() {
       <PagerView
         ref={pagerRef}
         style={{ flex: 1 }}
-        initialPage={0}
+        initialPage={1}
         onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
       >
         <View key="routine" style={{ flex: 1 }}>
           <RoutineScreen />
         </View>
-        <View key="calendar" style={{ flex: 1 }}>
-          <CalendarScreen />
+        <View key="home" style={{ flex: 1 }}>
+          <HomeScreen />
         </View>
         <View key="profile" style={{ flex: 1 }}>
           <ProfileScreen />

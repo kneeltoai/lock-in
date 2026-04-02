@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "lock-in",
+    "name": "Lock In",
     "slug": "lock-in",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#0a0a0a"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,10 +19,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#6366f1"
       },
       "package": "com.kneeltoai.lockin",
       "edgeToEdgeEnabled": true,
+      "permissions": ["android.permission.RECEIVE_BOOT_COMPLETED", "android.permission.SCHEDULE_EXACT_ALARM"],
       "predictiveBackGestureEnabled": false
     },
     "web": {

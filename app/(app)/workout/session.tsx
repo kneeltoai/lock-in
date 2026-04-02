@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useSessionByDate } from "@/hooks/useWorkoutSession";
-import { useAddSet, useUpdateSet, useDeleteSet } from "@/hooks/useWorkoutSession";
+import { useAddSet, useUpdateSet, useDeleteSet, useDeleteSessionExercise, useFinishSession } from "@/hooks/useWorkoutSession";
 import { useWorkoutStore } from "@/stores/workoutStore";
 import { Equipment, ExerciseSet, SessionExercise } from "@/types/workout";
 import { RestTimer } from "@/components/RestTimer";
@@ -150,9 +150,25 @@ interface ExerciseCardProps {
 
 function ExerciseCard({ sessionExercise, onSetCompleted }: ExerciseCardProps) {
   const addSet = useAddSet();
+  const deleteExercise = useDeleteSessionExercise();
   const [equipment, setEquipment] = useState<Equipment>("barbell");
 
   const sets = sessionExercise.sets ?? [];
+
+  const handleDeleteExercise = () => {
+    Alert.alert(
+      "운동 삭제",
+      `"${sessionExercise.exercise?.name ?? "운동"}"을(를) 세션에서 삭제할까요?\n세트 기록도 함께 삭제됩니다.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "삭제",
+          style: "destructive",
+          onPress: () => deleteExercise.mutate(sessionExercise.id),
+        },
+      ]
+    );
+  };
 
   const handleAddSet = () => {
     const lastSet = sets[sets.length - 1];
@@ -170,9 +186,14 @@ function ExerciseCard({ sessionExercise, onSetCompleted }: ExerciseCardProps) {
 
   return (
     <View className="bg-surface border border-border rounded-2xl p-4 mb-4">
-      <Text className="text-white font-bold text-lg mb-3">
-        {sessionExercise.exercise?.name ?? "운동"}
-      </Text>
+      <View className="flex-row items-center justify-between mb-3">
+        <Text className="text-white font-bold text-lg flex-1">
+          {sessionExercise.exercise?.name ?? "운동"}
+        </Text>
+        <TouchableOpacity onPress={handleDeleteExercise} className="p-1 ml-2">
+          <Text className="text-zinc-600 text-sm">삭제</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Equipment toggle */}
       <EquipmentSelector selected={equipment} onChange={setEquipment} />
@@ -261,6 +282,50 @@ export default function SessionScreen() {
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 
+  // ── 경과 시간 ─────────────────────────────────────────
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    if (session.ended_at) { setElapsedSec(0); return; }
+
+    const start = session.started_at ? new Date(session.started_at).getTime() : Date.now();
+    setElapsedSec(Math.floor((Date.now() - start) / 1000));
+
+    elapsedRef.current = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+
+    return () => { if (elapsedRef.current) clearInterval(elapsedRef.current); };
+  }, [session?.id, session?.ended_at]);
+
+  const finishSession = useFinishSession();
+
+  const handleFinish = () => {
+    if (!session) return;
+    Alert.alert("운동 종료", "오늘 운동을 종료할까요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "종료",
+        onPress: async () => {
+          await finishSession.mutateAsync(session.id);
+          router.back();
+        },
+      },
+    ]);
+  };
+
+  const formatElapsed = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
+  const isFinished = !!session?.ended_at;
+
   return (
     <View className="flex-1 bg-background">
       <RestTimer
@@ -276,8 +341,12 @@ export default function SessionScreen() {
           <Text className="text-primary text-base">← 뒤로</Text>
         </TouchableOpacity>
         <View className="items-center">
-          <Text className="text-white text-lg font-bold">오늘의 운동</Text>
-          <Text className="text-zinc-500 text-sm">{selectedDate}</Text>
+          <Text className="text-white text-lg font-bold">
+            {isFinished ? "운동 완료" : "운동 중"}
+          </Text>
+          <Text className="text-zinc-500 text-sm">
+            {isFinished ? selectedDate : formatElapsed(elapsedSec)}
+          </Text>
         </View>
         <TouchableOpacity onPress={() => router.push("/(app)/workout/muscle-select")}>
           <Text className="text-primary text-sm font-medium">+ 추가</Text>
@@ -303,15 +372,24 @@ export default function SessionScreen() {
         </ScrollView>
       )}
 
-      {/* FAB — 운동 추가 */}
-      <View className="absolute bottom-8 left-0 right-0 px-6">
-        <TouchableOpacity
-          className="bg-primary rounded-2xl py-4 items-center"
-          onPress={() => router.push("/(app)/workout/muscle-select")}
-        >
-          <Text className="text-white font-semibold text-base">+ 운동 추가</Text>
-        </TouchableOpacity>
-      </View>
+      {/* 하단 버튼 */}
+      {!isFinished && (
+        <View className="absolute bottom-8 left-0 right-0 px-6 flex-row gap-3">
+          <TouchableOpacity
+            className="flex-1 bg-surface border border-border rounded-2xl py-4 items-center"
+            onPress={() => router.push("/(app)/workout/muscle-select")}
+          >
+            <Text className="text-white font-semibold text-base">+ 운동 추가</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="flex-1 bg-primary rounded-2xl py-4 items-center"
+            onPress={handleFinish}
+            disabled={finishSession.isPending}
+          >
+            <Text className="text-white font-semibold text-base">운동 종료</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }

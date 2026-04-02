@@ -124,6 +124,7 @@ export default function ProfileScreen() {
         <MenuItem label="무게 단위" subtitle={weightUnit} />
         <MenuItem label="원판 설정" onPress={() => router.push("/(app)/settings/plates")} />
         <MenuItem label="점진적 과부하 설정" onPress={() => router.push("/(app)/settings/overload")} />
+        <MenuItem label="운동 알림" onPress={() => router.push("/(app)/settings/notifications")} />
       </View>
 
       {/* Records */}

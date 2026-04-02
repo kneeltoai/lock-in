@@ -70,6 +70,7 @@ export interface Profile {
   full_name?: string;
   avatar_url?: string;
   weight_unit: "kg" | "lbs";
+  goal?: string;
   created_at: string;
   updated_at: string;
 }

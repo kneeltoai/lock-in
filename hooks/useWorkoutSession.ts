@@ -23,17 +23,39 @@ async function fetchSessionByDate(userId: string, date: string): Promise<Workout
   return data;
 }
 
-async function fetchSessionsByMonth(userId: string, year: number, month: number): Promise<WorkoutSession[]> {
+export interface CalendarSession {
+  id: string;
+  date: string;
+  title?: string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  muscleGroups: string[];
+}
+
+async function fetchSessionsByMonth(userId: string, year: number, month: number): Promise<CalendarSession[]> {
   const from = `${year}-${String(month).padStart(2, "0")}-01`;
   const to = `${year}-${String(month).padStart(2, "0")}-31`;
   const { data, error } = await supabase
     .from("workout_sessions")
-    .select("id, date, title")
+    .select(`
+      id, date, title, started_at, ended_at,
+      session_exercises (
+        exercise:exercises (muscle_group)
+      )
+    `)
     .eq("user_id", userId)
     .gte("date", from)
     .lte("date", to);
   if (error) throw error;
-  return data ?? [];
+
+  return (data ?? []).map((s) => {
+    const groups = (s.session_exercises ?? [])
+      .map((se: { exercise: { muscle_group: string } | null }) => se.exercise?.muscle_group)
+      .filter(Boolean) as string[];
+    // 중복 제거
+    const muscleGroups = [...new Set(groups)];
+    return { id: s.id, date: s.date, title: s.title, started_at: s.started_at, ended_at: s.ended_at, muscleGroups };
+  });
 }
 
 // ── 세션 뮤테이션 ─────────────────────────────────────────
@@ -41,11 +63,22 @@ async function fetchSessionsByMonth(userId: string, year: number, month: number)
 async function upsertSession(userId: string, date: string): Promise<WorkoutSession> {
   const { data, error } = await supabase
     .from("workout_sessions")
-    .upsert({ user_id: userId, date }, { onConflict: "user_id,date" })
+    .upsert(
+      { user_id: userId, date, started_at: new Date().toISOString() },
+      { onConflict: "user_id,date" }
+    )
     .select()
     .single();
   if (error) throw error;
   return data;
+}
+
+async function finishSession(sessionId: string): Promise<void> {
+  const { error } = await supabase
+    .from("workout_sessions")
+    .update({ ended_at: new Date().toISOString() })
+    .eq("id", sessionId);
+  if (error) throw error;
 }
 
 async function addExerciseToSession(sessionId: string, exerciseId: string, orderIndex: number): Promise<SessionExercise> {
@@ -81,6 +114,11 @@ async function updateSet(setId: string, updates: Partial<Pick<ExerciseSet, "weig
 
 async function deleteSet(setId: string): Promise<void> {
   const { error } = await supabase.from("exercise_sets").delete().eq("id", setId);
+  if (error) throw error;
+}
+
+async function deleteSessionExercise(sessionExerciseId: string): Promise<void> {
+  const { error } = await supabase.from("session_exercises").delete().eq("id", sessionExerciseId);
   if (error) throw error;
 }
 
@@ -171,6 +209,27 @@ export function useDeleteSet() {
     mutationFn: (setId: string) => deleteSet(setId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["session"] });
+    },
+  });
+}
+
+export function useDeleteSessionExercise() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionExerciseId: string) => deleteSessionExercise(sessionExerciseId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["session"] });
+    },
+  });
+}
+
+export function useFinishSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) => finishSession(sessionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["session"] });
+      qc.invalidateQueries({ queryKey: ["sessions-month"] });
     },
   });
 }
